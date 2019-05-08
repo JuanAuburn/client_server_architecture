@@ -3,7 +3,6 @@ import os
 
 
 class Server:
-    capacity = 2000000
     port = "9999"
     context = None
     socket = None
