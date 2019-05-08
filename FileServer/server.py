@@ -8,7 +8,7 @@ class Server:
     socket = None
     dictionary_files = {}
     chunk_file = 2000
-    path_file = "files/"
+    path_file = "files_server/"
 
     def __init__(self):
         self.context = zmq.Context()
