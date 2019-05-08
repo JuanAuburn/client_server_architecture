@@ -3,8 +3,6 @@ import hashlib
 
 # cd C:\Users\Juano\Documents\Proyectos\client_server_architecture\FileServer
 
-chunk_file = 20000
-
 
 def md5_for_file(file_name):
     hash_md5 = hashlib.md5()
