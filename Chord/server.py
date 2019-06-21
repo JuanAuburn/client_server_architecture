@@ -22,11 +22,10 @@ class Server:
         self.path_file = "files_server_"+port+"/"
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REP)
-        self.socket.bind("tcp://*:"+port)
+        self.socket.bind("tcp://"+ip)
         if not os.path.exists(self.path_file):
             os.mkdir(self.path_file)
         self.init(address_to_ring)
-        self.listen()
 
     def init(self, address_to_ring):
         if address_to_ring:
@@ -35,6 +34,7 @@ class Server:
                 context_to_server = zmq.Context()
                 socket_to_server = context_to_server.socket(zmq.REQ)
                 socket_to_server.connect("tcp://"+address)
+                print("connect to: " + address)
                 socket_to_server.send_multipart(['is_your_hash'.encode(), self.id.encode()])
                 message = socket_to_server.recv_multipart()
                 if message[0].decode() == 'yes':
@@ -60,7 +60,7 @@ class Server:
             self.my_range_to_save = [[self.id, hash]]
 
     def listen(self):
-        print("SERVER IS RUNING")
+        print("SERVER IS RUNNING")
         while True:
             try:
                 message = self.socket.recv_multipart()
@@ -79,13 +79,17 @@ class Server:
                     elif method == 'is_your_hash':
                         hash = message[1].decode()
                         if self.is_my_hash(hash):
-                            self.socket.send_multipart(['yes'.encode(), self.id.encode(), self.successor[0].encode(), self.successor[1].encode()])
+                            if self.successor:
+                                self.socket.send_multipart(['yes'.encode(), self.id.encode(), self.successor[0].encode(), self.successor[1].encode()])
+                            else:
+                                self.socket.send_multipart(['yes'.encode(), self.id.encode(), self.my_ip.encode(), self.id.encode()])
                         else:
                             self.socket.send_multipart(['no'.encode(), self.successor[0].encode()])
                     elif method == 'enter_the_game':
                         hash = message[1].decode()
                         ip_address = message[2].decode()
                         self.socket.send_multipart(['ok'.encode()])
+                        print("THE NEW SERVER " + ip_address + " ENTRY IN THE RING")
                         self.successor = [ip_address, hash]
                         if len(self.my_range_to_save) == 1:
                             self.send_files_to_range(hash, self.my_range_to_save[0][1], ip_address)
