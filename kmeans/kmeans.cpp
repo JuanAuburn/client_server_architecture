@@ -7,6 +7,7 @@
 #include <string>
 #include <ctime>
 #include <cstdlib>
+#include <thread>
 using namespace std;
 
 using Point = std::vector<double>;
@@ -115,22 +116,15 @@ DataFrame random_means(int k) {
 	return(means);
 }
 
-double bs_distances = std::numeric_limits<double>::max();
-DataFrame bs_means;
-std::vector<int> bs_assignments;
-
-DataFrame k_means(const DataFrame& data, int k, int number_of_iterations) {
-	cout<<"k_means"<<endl;
-	// Pick centroids as random points from the dataset
-	DataFrame means = random_means(k);
+void p_k_means(const DataFrame& data, int k, int number_of_iterations, DataFrame means, double *bs_distances, std::vector<int> *bs_assignments, DataFrame *bs_means) {
 	
 	for (int iteration = 0; iteration < number_of_iterations; iteration++) {
 		std::vector<int> assignments(data.size());
 		double assignments_best_distances = 0;
 		int now_iteration = iteration+1;
-		cout<<"START iteration: "<<now_iteration<<" -----------------------------------------"<<endl;
+		// cout<<"START iteration: "<<now_iteration<<" -----------------------------------------"<<endl;
 		// Find assignments.
-		cout<<"START assignments -----------------------------------------"<<endl;
+		// cout<<"START assignments -----------------------------------------"<<endl;
 		for (int point = 0; point < data.size(); point++) {
 			double best_distance = std::numeric_limits<double>::max();
 			int best_cluster = 0;
@@ -144,18 +138,18 @@ DataFrame k_means(const DataFrame& data, int k, int number_of_iterations) {
 			assignments_best_distances += best_distance;
 			assignments[point] = best_cluster;
 		}
-		printVector(assignments);
-		cout<<"All distances: "<<assignments_best_distances<<endl;
-		cout<<"END assignments -------------------------------------------"<<endl;
+		// printVector(assignments);
+		// cout<<"All distances: "<<assignments_best_distances<<endl;
+		// cout<<"END assignments -------------------------------------------"<<endl;
 		
-		if(assignments_best_distances == bs_distances) {
+		if(assignments_best_distances == *bs_distances) {
 			iteration = number_of_iterations;
 		}
 		
-		if(assignments_best_distances < bs_distances) {
-			bs_distances = assignments_best_distances;
-			bs_means = means;
-      bs_assignments = assignments;
+		if(assignments_best_distances < *bs_distances) {
+			*bs_distances = assignments_best_distances;
+			*bs_means = means;
+			*bs_assignments = assignments;
 		}
 	
 		// cout<<"START new_means SUM -----------------------------------------"<<endl;
@@ -182,7 +176,7 @@ DataFrame k_means(const DataFrame& data, int k, int number_of_iterations) {
 		for (int cluster = 0; cluster < k; ++cluster) {
 			const int count = counts[cluster];
 			if(count == 0) {
-				cout<<"The cluster: "<<cluster<<" no is used"<<endl;
+				// cout<<"The cluster: "<<cluster<<" no is used"<<endl;
 				means[cluster] = random_point();
 			} else {
 				for (int i = 0; i < dimension; i++) {
@@ -192,24 +186,61 @@ DataFrame k_means(const DataFrame& data, int k, int number_of_iterations) {
 		}
 		// printMatrix(means);
 		// cout<<"END new_means DIV -------------------------------------------"<<endl;
-		cout<<"END iteration: "<<now_iteration<<" -------------------------------------------"<<endl;
+		// cout<<"END iteration: "<<now_iteration<<" -------------------------------------------"<<endl;
+	}
+}
+
+double g_bs_distances = std::numeric_limits<double>::max();
+DataFrame g_bs_means;
+std::vector<int> g_bs_assignments;
+
+void k_means(const DataFrame& data, int k, int number_of_iterations, int number_of_threads) {
+	cout<<"k_means"<<endl;
+	thread myThreads[number_of_threads];
+	
+	int iterations_thread = number_of_iterations/number_of_threads;
+	if (iterations_thread < 1) {
+		iterations_thread = number_of_iterations;
+		number_of_threads = 1;
+	}
+	std::vector<double> bs_distances(number_of_threads, std::numeric_limits<double>::max());
+	std::vector<DataFrame> bs_means(number_of_threads);
+	std::vector< std::vector<int> > bs_assignments(number_of_threads);
+	for(int i=0; i<number_of_threads; i++) {
+		DataFrame tempMeans = random_means(k);
+		myThreads[i] = thread(p_k_means, data, k, iterations_thread, tempMeans, &(bs_distances[i]), &(bs_assignments[i]), &(bs_means[i]));
 	}
 	
-	return means;
+	for (int i=0; i<number_of_threads; i++) {
+        myThreads[i].join();
+        cout<<"BEST SOLUTION to THREAD: "<<i<<endl;
+        cout<<"total distance: "<<bs_distances[i]<<endl;
+	  	cout<<"Clusters:"<<endl;
+		printMatrix(bs_means[i]);
+	  	cout<<"Assignments"<<endl;
+  		printVector(bs_assignments[i]);
+    }
+    
+    for (int i=0; i<number_of_threads; i++) {
+    	if(bs_distances[i] < g_bs_distances) {
+    		g_bs_distances = bs_distances[i];
+    		g_bs_means = bs_means[i];
+			g_bs_assignments = bs_assignments[i];
+		}
+    }
 }
 
 int main() {
 	srand(time(0)); // Initialize random number generator
 	DataFrame data = dataSet("iris.data");
 	// cout<<"dimension: "<<dimension<<endl;
-	DataFrame means = k_means(data, 3, 50);
-	printMatrix(means);
+	k_means(data, 3, 100, 4);
 	cout<<"BEST SOLUTION"<<endl;
-	cout<<"All distances: "<<bs_distances<<endl;
+	cout<<"All distances: "<<g_bs_distances<<endl;
   	cout<<"Clusters:"<<endl;
-	printMatrix(bs_means);
+	printMatrix(g_bs_means);
   	cout<<"Assignments"<<endl;
-  	printVector(bs_assignments);
+  	printVector(g_bs_assignments);
 	return(0);
 }
 
