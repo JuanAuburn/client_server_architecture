@@ -5,7 +5,7 @@ import hashlib
 
 min_value = "00000000000000000000000000000000"
 max_value = "ffffffffffffffffffffffffffffffff"
-chunk_file = 10240
+chunk_file = 10240000
 
 
 def md5_for_string(string):

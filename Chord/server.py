@@ -52,12 +52,15 @@ class Server:
                     address = message[1].decode()
         else:
             self.my_range_to_save = [[self.id, utilities.max_value], [utilities.min_value, self.id]]
+            print("self.my_range_to_save = " + str(self.my_range_to_save))
 
     def update_range(self, hash):
         if utilities.hexa1_smaller_than_hexa2(hash, self.id):
             self.my_range_to_save = [[self.id, utilities.max_value], [utilities.min_value, hash]]
+            print("self.my_range_to_save = " + str(self.my_range_to_save))
         else:
             self.my_range_to_save = [[self.id, hash]]
+            print("self.my_range_to_save = " + str(self.my_range_to_save))
 
     def listen(self):
         print("SERVER IS RUNNING")
@@ -148,21 +151,36 @@ class Server:
                     return False
 
     def send_files_to_range(self, hash1, hash2, address):
+        # print("send_files_to_range, "+hash1+" , "+hash2)
         context_to_server = zmq.Context()
         socket_to_server = context_to_server.socket(zmq.REQ)
         socket_to_server.connect("tcp://"+address)
+        print("connect to: " + address)
         list_elements = os.listdir(self.path_file)
+        # print(list_elements)
         for x in range(len(list_elements)):
-            if list_elements[x] == hash1:
+            hash_file = list_elements[x].split(".part")[0]
+            print(hash_file)
+            if hash_file == hash1:
+                print("hash_file == hash1")
                 file = open(self.path_file + list_elements[x], 'rb')
                 data = file.read()
+                file.close()
+                print("send file: "+list_elements[x])
                 socket_to_server.send_multipart(['send_file'.encode(), list_elements[x].encode(), data])
                 socket_to_server.recv_multipart()
-            elif utilities.hexa1_greater_than_hexa2(list_elements[x], hash1):
-                if utilities.hexa1_smaller_than_hexa2(list_elements[x], hash2):
+                os.remove(self.path_file + list_elements[x])
+            elif utilities.hexa1_greater_than_hexa2(hash_file, hash1):
+                if utilities.hexa1_smaller_than_hexa2(hash_file, hash2):
+                    print("hash_file entry in the range")
+                    print("open("+self.path_file+list_elements[x]+", 'rb')")
                     file = open(self.path_file + list_elements[x], 'rb')
                     data = file.read()
+                    file.close()
+                    print("send file: " + list_elements[x])
                     socket_to_server.send_multipart(['send_file'.encode(), list_elements[x].encode(), data])
+                    socket_to_server.recv_multipart()
+                    os.remove(self.path_file + list_elements[x])
 
     def get_file(self, hash_file, data):  # el servidor obtiene un archivo
         if os.path.exists(self.path_file + hash_file):

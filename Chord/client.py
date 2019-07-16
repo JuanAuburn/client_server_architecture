@@ -39,24 +39,27 @@ class Client:
                     part += 1
                 print("sending the sub parts")
                 address_to_server = self.server_ip
-                while True:
-                    context_to_server = zmq.Context()
-                    socket_to_server = context_to_server.socket(zmq.REQ)
-                    socket_to_server.connect("tcp://"+address_to_server)
-                    print("connect to: " + address_to_server + " and ask is your hash " + hash_file)
-                    socket_to_server.send_multipart(['is_your_hash'.encode(), hash_file.encode()])
-                    message = socket_to_server.recv_multipart()
-                    if message[0].decode() == 'yes':
-                        print("Server response: YES")
-                        self.dictionary_files[hash_file] = {"address": address_to_server, "parts": hash_list_to_send}
-                        for count in range(len(hash_list_to_send)):
-                            print("Sending the part: " + hash_list_to_send[count])
-                            socket_to_server.send_multipart(['send_file'.encode(), hash_list_to_send[count].encode(), data_map[hash_list_to_send[count]]])
+                self.dictionary_files[hash_file] = []
+                for count in range(len(hash_list_to_send)):
+                    print("Sending the part: " + hash_list_to_send[count])
+                    while True:
+                        context_to_server = zmq.Context()
+                        socket_to_server = context_to_server.socket(zmq.REQ)
+                        socket_to_server.connect("tcp://" + address_to_server)
+                        print("connect to: " + address_to_server + " and ask is your hash " + hash_list_to_send[count])
+                        socket_to_server.send_multipart(['is_your_hash'.encode(), hash_list_to_send[count].split(".part")[0].encode()])
+                        message = socket_to_server.recv_multipart()
+                        if message[0].decode() == 'yes':
+                            print("Server response: YES")
+                            self.dictionary_files[hash_file].append({"address": address_to_server,
+                                                                "part": hash_list_to_send[count]})
+                            socket_to_server.send_multipart(['send_file'.encode(), hash_list_to_send[count].encode(),
+                                                             data_map[hash_list_to_send[count]]])
                             message = socket_to_server.recv_multipart()
-                        break
-                    else:
-                        print("Server response: NO")
-                        address_to_server = message[1].decode()
+                            break
+                        else:
+                            print("Server response: NO")
+                            address_to_server = message[1].decode()
                 print("finish to send the file")
             except IOError as error:
                 print(error)
@@ -71,14 +74,13 @@ class Client:
             print("create file '" + name_file_to_save + "'")
             file = open(self.path_file + name_file_to_save, "ab")
             all_data = {}
-            address_to_server = self.dictionary_files[hash_file_name]["address"]
-            list_of_hashes = self.dictionary_files[hash_file_name]["parts"]
-            context_to_server = zmq.Context()
-            socket_to_server = context_to_server.socket(zmq.REQ)
-            print("connect to: " + address_to_server)
-            socket_to_server.connect("tcp://"+address_to_server)
-            for hash_file in list_of_hashes:
-                # print("socket_to_server, " + address + ", " + hash_file)
+            for count in range(len(self.dictionary_files[hash_file_name])):
+                address_to_server = self.dictionary_files[hash_file_name][count]["address"]
+                hash_file = self.dictionary_files[hash_file_name][count]["part"]
+                context_to_server = zmq.Context()
+                socket_to_server = context_to_server.socket(zmq.REQ)
+                socket_to_server.connect("tcp://"+address_to_server)
+                print("connect to: " + address_to_server)
                 socket_to_server.send_multipart(['get_file'.encode(), hash_file.encode()])
                 response = socket_to_server.recv_multipart()
                 status = response[0].decode()
@@ -87,9 +89,37 @@ class Client:
                     part = hash_file.split('.part')[1]
                     all_data[part] = data
                 else:
-                    message = response[1].decode()
-                    print("ERROR - " + message)
-            # print("Construyendo file")
+                    while True:
+                        context_to_server = zmq.Context()
+                        socket_to_server = context_to_server.socket(zmq.REQ)
+                        socket_to_server.connect("tcp://" + address_to_server)
+                        print("connect to: " + address_to_server + " and ask is your hash " + hash_file)
+                        socket_to_server.send_multipart(['is_your_hash'.encode(), hash_file.split(".part")[0].encode()])
+                        message = socket_to_server.recv_multipart()
+                        if message[0].decode() == 'yes':
+                            print("Server response: YES")
+                            break
+                        else:
+                            print("Server response: NO")
+                            address_to_server = message[1].decode()
+                    # TRYING AGAIN TO GET PART FILE
+                    context_to_server = zmq.Context()
+                    socket_to_server = context_to_server.socket(zmq.REQ)
+                    socket_to_server.connect("tcp://" + address_to_server)
+                    print("connect to: " + address_to_server)
+                    socket_to_server.send_multipart(['get_file'.encode(), hash_file.encode()])
+                    response = socket_to_server.recv_multipart()
+                    status = response[0].decode()
+                    if status == 'OK':
+                        data = response[1]
+                        part = hash_file.split('.part')[1]
+                        all_data[part] = data
+                    else:
+                        print("THE PART OF THE FILE NO ISSET IN ANY FILE SERVER")
+                        message = response[1].decode()
+                        print("ERROR - " + message)
+                        return
+            print("Construyendo file")
             for count in range(len(all_data.keys())):
                 # print(count)
                 file.write(all_data[str(count)])
